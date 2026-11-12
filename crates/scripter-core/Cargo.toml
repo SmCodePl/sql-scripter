@@ -1,0 +1,31 @@
+[package]
+name = "scripter-core"
+description = "MSSQL change scripting core: connection store, catalog queries and script generation"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+aes-gcm.workspace = true
+base64.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+sqlx.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+
+# Windows: native TLS (SChannel) + integrated Windows authentication.
+[target.'cfg(windows)'.dependencies]
+tiberius = { version = "0.12", features = ["sql-browser-tokio"] }
+
+# macOS (and Linux): rustls instead of the system TLS stack. macOS Security.framework rejects
+# certificates valid longer than 825 days ("The validity period in the certificate exceeds the
+# maximum allowed") even when TrustServerCertificate is on - and SQL Server's auto-generated
+# self-signed certificate is valid for years.
+[target.'cfg(not(windows))'.dependencies]
+tiberius = { version = "0.12", default-features = false, features = ["tds73", "rustls", "sql-browser-tokio"] }
+
+[dev-dependencies]
+tempfile = "3"

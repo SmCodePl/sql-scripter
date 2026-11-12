@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = ["crates/scripter-core", "src-tauri"]
+
+[workspace.package]
+edition = "2024"
+version = "0.2.0"
+authors = ["Sławomir Markiewicz <SmCode>"]
+license = "MIT"
+
+[workspace.dependencies]
+scripter-core = { path = "crates/scripter-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+aes-gcm = "0.10"
+base64 = "0.22"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "fs"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tracing = "0.1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

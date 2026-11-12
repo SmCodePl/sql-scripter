@@ -1,0 +1,24 @@
+/* SmCode brand: lime green (#7DCF09) + black + white, taken from the SmCode logo.
+   Overrides the Untitled UI brand scale. Solid brand surfaces (primary buttons, checkboxes,
+   toggles) use the logo black for contrast; lime is the accent (focus, active tab, icons). */
+@theme {
+    --color-brand-25: rgb(251 255 245);
+    --color-brand-50: rgb(244 253 230);
+    --color-brand-100: rgb(230 251 198);
+    --color-brand-200: rgb(205 245 148);
+    --color-brand-300: rgb(174 234 88);
+    --color-brand-400: rgb(149 221 42);
+    --color-brand-500: rgb(125 207 9);
+    --color-brand-600: rgb(100 168 7);
+    --color-brand-700: rgb(76 128 9);
+    --color-brand-800: rgb(61 101 13);
+    --color-brand-900: rgb(51 85 15);
+    --color-brand-950: rgb(26 48 3);
+
+    --color-smcode-black: rgb(17 17 17);
+    --color-smcode-lime: rgb(125 207 9);
+
+    --color-bg-brand-solid: var(--color-smcode-black);
+    --color-bg-brand-solid_hover: rgb(48 48 48);
+    --color-focus-ring: var(--color-brand-500);
+}

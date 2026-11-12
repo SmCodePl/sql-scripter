@@ -1,0 +1,46 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "SQL Scripter",
+    "version": "0.2.0",
+    "identifier": "com.sm-code.sqlscripter",
+    "build": {
+        "beforeDevCommand": "npm run dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "npm run build",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "SQL Scripter",
+                "width": 1360,
+                "height": 840,
+                "minWidth": 1000,
+                "minHeight": 620
+            }
+        ],
+        "security": {
+            "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "publisher": "SmCode",
+        "copyright": "© SmCode",
+        "category": "DeveloperTool",
+        "shortDescription": "Skryptowanie zmian w bazie MSSQL do plików .sql",
+        "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+        "macOS": {
+            "minimumSystemVersion": "10.15"
+        },
+        "windows": {
+            "nsis": {
+                "installMode": "currentUser",
+                "languages": ["Polish", "English"],
+                "displayLanguageSelector": false
+            }
+        }
+    }
+}

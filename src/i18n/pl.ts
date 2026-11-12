@@ -64,6 +64,10 @@ export const pl = {
     "ws.tabs": "Otwarte połączenia",
     "ws.closeTab": "Zamknij {name}",
     "ws.migrated": "Zaszyfrowano hasła w {n} zapisanych połączeniach.",
+    "ws.passwordTitle": "Wymagane hasło",
+    "ws.passwordBody": "Klucz szyfrowania uległ zmianie. Wpisz hasło dla połączenia {name}, aby je ponownie zapisać.",
+    "ws.passwordLabel": "Hasło",
+    "ws.passwordConnect": "Połącz",
 
     // filters
     "filter.export": "Eksportuj:",

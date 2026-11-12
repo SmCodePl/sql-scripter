@@ -126,6 +126,22 @@ pub async fn close_session(state: State<'_, AppState>, connection_id: i64) -> Cm
     Ok(())
 }
 
+/// Opens a session using an explicit password (bypassing the stored one).
+/// On success, re-encrypts and saves the password so the user is only asked once.
+#[tauri::command]
+pub async fn open_session_with_password(
+    state: State<'_, AppState>,
+    connection_id: i64,
+    password: String,
+) -> CmdResult<ServerInfo> {
+    let info = state.open_session_with_password(connection_id, &password).await?;
+    // Re-encrypt the password with the current key.
+    if let Err(e) = state.store.update_password(connection_id, &password).await {
+        tracing::warn!(error = %e, "could not re-save password after key change");
+    }
+    Ok(info)
+}
+
 // ---- Search / script / export ---------------------------------------------------------
 
 #[tauri::command]

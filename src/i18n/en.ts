@@ -61,6 +61,10 @@ export const en: Record<TranslationKey, string> = {
     "ws.tabs": "Open connections",
     "ws.closeTab": "Close {name}",
     "ws.migrated": "Passwords of {n} saved connections have been encrypted.",
+    "ws.passwordTitle": "Password required",
+    "ws.passwordBody": "The encryption key has changed. Enter the password for {name} to re-save it.",
+    "ws.passwordLabel": "Password",
+    "ws.passwordConnect": "Connect",
 
     "filter.export": "Export:",
     "filter.all": "All",

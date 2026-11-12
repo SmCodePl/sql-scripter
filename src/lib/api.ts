@@ -99,6 +99,8 @@ export const api = {
         invoke<ServerInfo>("test_connection", { params, password, connectionId }),
 
     openSession: (connectionId: number) => invoke<ServerInfo>("open_session", { connectionId }),
+    openSessionWithPassword: (connectionId: number, password: string) =>
+        invoke<ServerInfo>("open_session_with_password", { connectionId, password }),
     closeSession: (connectionId: number) => invoke<void>("close_session", { connectionId }),
 
     searchObjects: (connectionId: number, filter: SearchFilter) => invoke<DbObject[]>("search_objects", { connectionId, filter }),

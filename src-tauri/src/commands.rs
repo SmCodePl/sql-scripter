@@ -126,6 +126,22 @@ pub async fn close_session(state: State<'_, AppState>, connection_id: i64) -> Cm
     Ok(())
 }
 
+/// Opens a session using an explicit password (bypassing the stored one).
+/// On success, re-encrypts and saves the password so the user is only asked once.
+#[tauri::command]
+pub async fn open_session_with_password(
+    state: State<'_, AppState>,
+    connection_id: i64,
+    password: String,
+) -> CmdResult<ServerInfo> {
+    let info = state.open_session_with_password(connection_id, &password).await?;
+    // Re-encrypt the password with the current key.
+    if let Err(e) = state.store.update_password(connection_id, &password).await {
+        tracing::warn!(error = %e, "could not re-save password after key change");
+    }
+    Ok(info)
+}
+
 // ---- Search / script / export ---------------------------------------------------------
 
 #[tauri::command]
@@ -144,7 +160,7 @@ pub async fn search_objects(state: State<'_, AppState>, connection_id: i64, filt
 #[tauri::command]
 pub async fn preview_script(state: State<'_, AppState>, connection_id: i64, object: ObjectRef) -> CmdResult<String> {
     let session = state.session(connection_id).await?;
-    let header = export::header_for(&session.source_label());
+    let header = export::header_for(&session.source_label(), session.info.major_version);
     let mut client = session.client.lock().await;
     match export::script_object(&mut client, &object, &header).await {
         Err(e) if e.is_connection_lost() => {
@@ -166,12 +182,13 @@ pub async fn export_objects(
     let dir = PathBuf::from(&directory);
     let source = session.source_label();
 
+    let major_version = session.info.major_version;
     let report = {
         let mut client = session.client.lock().await;
-        match export::export_objects(&mut client, &objects, &dir, &source).await {
+        match export::export_objects(&mut client, &objects, &dir, &source, major_version).await {
             Err(e) if e.is_connection_lost() => {
                 session.reconnect(&state.store, &mut client).await?;
-                export::export_objects(&mut client, &objects, &dir, &source).await?
+                export::export_objects(&mut client, &objects, &dir, &source, major_version).await?
             }
             other => other?,
         }

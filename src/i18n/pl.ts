@@ -21,6 +21,8 @@ export const pl = {
     "sidebar.connected": "Połączono",
     "sidebar.settings": "Ustawienia",
     "sidebar.about": "O programie",
+    "sidebar.collapse": "Zwiń panel",
+    "sidebar.expand": "Rozwiń panel",
 
     // connection dialog
     "conn.new": "Nowe połączenie",
@@ -62,6 +64,10 @@ export const pl = {
     "ws.tabs": "Otwarte połączenia",
     "ws.closeTab": "Zamknij {name}",
     "ws.migrated": "Zaszyfrowano hasła w {n} zapisanych połączeniach.",
+    "ws.passwordTitle": "Wymagane hasło",
+    "ws.passwordBody": "Klucz szyfrowania uległ zmianie. Wpisz hasło dla połączenia {name}, aby je ponownie zapisać.",
+    "ws.passwordLabel": "Hasło",
+    "ws.passwordConnect": "Połącz",
 
     // filters
     "filter.export": "Eksportuj:",
@@ -112,6 +118,13 @@ export const pl = {
     "preview.tooltip": "Podgląd skryptu",
     "preview.file": "Plik: {file}",
     "preview.generating": "Generowanie skryptu…",
+    "preview.contextMenu": "Podejrzyj procedurę",
+
+    // pagination
+    "pagination.rowsPerPage": "Wierszy na stronę:",
+    "pagination.page": "Strona {a} z {b}",
+    "pagination.prev": "Poprzednia strona",
+    "pagination.next": "Następna strona",
 
     // settings
     "settings.title": "Ustawienia",

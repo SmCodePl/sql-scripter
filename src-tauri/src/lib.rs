@@ -51,6 +51,7 @@ pub fn run() {
             commands::preview_connection_string,
             commands::test_connection,
             commands::open_session,
+            commands::open_session_with_password,
             commands::close_session,
             commands::search_objects,
             commands::preview_script,

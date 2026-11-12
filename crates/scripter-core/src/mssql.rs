@@ -1,5 +1,5 @@
 //! SQL Server access: connecting and reading the catalog (sys.* views).
-//! Requires SQL Server 2017+ (STRING_AGG) for table scripting; CREATE OR ALTER needs 2016 SP1+.
+//! Compatible with SQL Server 2008 R2+ (uses STUFF+FOR XML PATH instead of STRING_AGG).
 
 use std::time::Duration;
 
@@ -204,55 +204,64 @@ ORDER BY c.column_id
 const PK_SQL: &str = r#"
 SELECT CAST(kc.name AS nvarchar(128)),
        CAST(i.type_desc AS nvarchar(60)),
-       CAST(STRING_AGG(CAST(QUOTENAME(col.name) + CASE WHEN ixc.is_descending_key = 1 THEN N' DESC' ELSE N' ASC' END AS nvarchar(max)), N', ')
-            WITHIN GROUP (ORDER BY ixc.key_ordinal) AS nvarchar(max))
+       CAST(STUFF((SELECT N', ' + QUOTENAME(col2.name) + CASE WHEN ixc2.is_descending_key = 1 THEN N' DESC' ELSE N' ASC' END
+                    FROM sys.index_columns ixc2
+                    JOIN sys.columns col2 ON col2.object_id = ixc2.object_id AND col2.column_id = ixc2.column_id
+                    WHERE ixc2.object_id = i.object_id AND ixc2.index_id = i.index_id AND ixc2.key_ordinal > 0
+                    ORDER BY ixc2.key_ordinal
+                    FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'') AS nvarchar(max))
 FROM sys.key_constraints kc
-JOIN sys.indexes i         ON i.object_id = kc.parent_object_id AND i.index_id = kc.unique_index_id
-JOIN sys.index_columns ixc ON ixc.object_id = i.object_id AND ixc.index_id = i.index_id AND ixc.key_ordinal > 0
-JOIN sys.columns col       ON col.object_id = ixc.object_id AND col.column_id = ixc.column_id
+JOIN sys.indexes i ON i.object_id = kc.parent_object_id AND i.index_id = kc.unique_index_id
 WHERE kc.type = 'PK' AND kc.parent_object_id = OBJECT_ID(@P1)
-GROUP BY kc.name, i.type_desc
 "#;
 
-// Both aggregates share one ordering (SQL Server rejects different WITHIN GROUP orders in one scope);
-// included columns have key_ordinal = 0 so they sort first, which does not matter for INCLUDE.
 const INDEXES_SQL: &str = r#"
 SELECT CAST(i.name AS nvarchar(128)),
        CAST(i.type_desc AS nvarchar(60)),
        i.is_unique,
        i.is_unique_constraint,
-       CAST(STRING_AGG(CASE WHEN ixc.is_included_column = 0
-                            THEN CAST(QUOTENAME(c.name) + CASE WHEN ixc.is_descending_key = 1 THEN N' DESC' ELSE N' ASC' END AS nvarchar(max)) END, N', ')
-            WITHIN GROUP (ORDER BY ixc.key_ordinal, ixc.index_column_id) AS nvarchar(max)),
-       CAST(STRING_AGG(CASE WHEN ixc.is_included_column = 1 THEN CAST(QUOTENAME(c.name) AS nvarchar(max)) END, N', ')
-            WITHIN GROUP (ORDER BY ixc.key_ordinal, ixc.index_column_id) AS nvarchar(max)),
+       CAST(STUFF((SELECT N', ' + QUOTENAME(c2.name) + CASE WHEN ixc2.is_descending_key = 1 THEN N' DESC' ELSE N' ASC' END
+                    FROM sys.index_columns ixc2
+                    JOIN sys.columns c2 ON c2.object_id = ixc2.object_id AND c2.column_id = ixc2.column_id
+                    WHERE ixc2.object_id = i.object_id AND ixc2.index_id = i.index_id AND ixc2.is_included_column = 0
+                    ORDER BY ixc2.key_ordinal, ixc2.index_column_id
+                    FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'') AS nvarchar(max)),
+       CAST(STUFF((SELECT N', ' + QUOTENAME(c3.name)
+                    FROM sys.index_columns ixc3
+                    JOIN sys.columns c3 ON c3.object_id = ixc3.object_id AND c3.column_id = ixc3.column_id
+                    WHERE ixc3.object_id = i.object_id AND ixc3.index_id = i.index_id AND ixc3.is_included_column = 1
+                    ORDER BY ixc3.key_ordinal, ixc3.index_column_id
+                    FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'') AS nvarchar(max)),
        CAST(i.filter_definition AS nvarchar(max))
 FROM sys.indexes i
-JOIN sys.index_columns ixc ON ixc.object_id = i.object_id AND ixc.index_id = i.index_id
-JOIN sys.columns c         ON c.object_id = ixc.object_id AND c.column_id = ixc.column_id
 WHERE i.object_id = OBJECT_ID(@P1)
   AND i.is_primary_key = 0
   AND i.is_hypothetical = 0
   AND i.type IN (1, 2)
-GROUP BY i.name, i.type_desc, i.is_unique, i.is_unique_constraint, i.filter_definition
 ORDER BY i.name
 "#;
 
 const FOREIGN_KEYS_SQL: &str = r#"
 SELECT CAST(fk.name AS nvarchar(128)),
-       CAST(STRING_AGG(CAST(QUOTENAME(pc.name) AS nvarchar(max)), N', ') WITHIN GROUP (ORDER BY fkc.constraint_column_id) AS nvarchar(max)),
+       CAST(STUFF((SELECT N', ' + QUOTENAME(pc2.name)
+                    FROM sys.foreign_key_columns fkc2
+                    JOIN sys.columns pc2 ON pc2.object_id = fkc2.parent_object_id AND pc2.column_id = fkc2.parent_column_id
+                    WHERE fkc2.constraint_object_id = fk.object_id
+                    ORDER BY fkc2.constraint_column_id
+                    FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'') AS nvarchar(max)),
        CAST(QUOTENAME(rs.name) + N'.' + QUOTENAME(rt.name) AS nvarchar(300)),
-       CAST(STRING_AGG(CAST(QUOTENAME(rc.name) AS nvarchar(max)), N', ') WITHIN GROUP (ORDER BY fkc.constraint_column_id) AS nvarchar(max)),
+       CAST(STUFF((SELECT N', ' + QUOTENAME(rc2.name)
+                    FROM sys.foreign_key_columns fkc3
+                    JOIN sys.columns rc2 ON rc2.object_id = fkc3.referenced_object_id AND rc2.column_id = fkc3.referenced_column_id
+                    WHERE fkc3.constraint_object_id = fk.object_id
+                    ORDER BY fkc3.constraint_column_id
+                    FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'') AS nvarchar(max)),
        CAST(fk.delete_referential_action_desc AS nvarchar(60)),
        CAST(fk.update_referential_action_desc AS nvarchar(60))
 FROM sys.foreign_keys fk
-JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
-JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id     AND pc.column_id = fkc.parent_column_id
-JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
 JOIN sys.tables rt  ON rt.object_id = fk.referenced_object_id
 JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
 WHERE fk.parent_object_id = OBJECT_ID(@P1)
-GROUP BY fk.name, rs.name, rt.name, fk.delete_referential_action_desc, fk.update_referential_action_desc
 ORDER BY fk.name
 "#;
 

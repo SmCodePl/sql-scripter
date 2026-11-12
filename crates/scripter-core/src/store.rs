@@ -247,24 +247,38 @@ impl ConnectionStore {
     }
 
     /// Params plus decrypted password, for connecting. Never sent to the UI.
+    /// Returns `Error::DecryptionFailed` when the stored password cannot be decrypted
+    /// (e.g. the encryption key changed). The caller can recover by asking for the password.
     pub async fn credentials(&self, id: i64) -> Result<(ConnectionParams, Option<String>)> {
         let row = self.row(id).await?;
         let Some(encrypted) = row.password_enc.as_deref() else {
             return Ok((row.params(), None));
         };
-        // Keychain errors (e.g. access denied) pass through unchanged; only a failed
-        // decryption with a loaded key means the key was replaced.
         let cipher = self.cipher.get()?;
         let password = Some(encrypted)
             .map(|p| cipher.decrypt(p))
             .transpose()
-            .map_err(|_| {
-                Error::validation(
-                    "Nie można odszyfrować hasła (klucz w pęku kluczy systemu został zmieniony lub usunięty). Wpisz hasło ponownie w edycji połączenia.",
-                    "Cannot decrypt the password (the key in the system keychain was changed or removed). Re-enter the password in the connection settings.",
-                )
-            })?;
+            .map_err(|_| Error::DecryptionFailed(id))?;
         Ok((row.params(), password))
+    }
+
+    /// Returns only the connection params (no password decryption). Used when password
+    /// will be supplied externally (e.g. after a decryption failure).
+    pub async fn credentials_params_only(&self, id: i64) -> Result<(ConnectionParams, bool)> {
+        let row = self.row(id).await?;
+        let has_password = row.password_enc.is_some();
+        Ok((row.params(), has_password))
+    }
+
+    /// Re-encrypts and saves a password with the current key. Used when the old key is lost.
+    pub async fn update_password(&self, id: i64, password: &str) -> Result<()> {
+        let password_enc = self.encrypt_password(Some(password))?;
+        sqlx::query("UPDATE connections SET password_enc = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?")
+            .bind(password_enc)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     fn validate(input: &ConnectionInput) -> Result<String> {

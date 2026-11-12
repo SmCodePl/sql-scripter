@@ -62,6 +62,21 @@ impl AppState {
         Ok(sessions.entry(connection_id).or_insert(session).clone())
     }
 
+    /// Opens a session using an explicit password (when the stored one can't be decrypted).
+    pub async fn open_session_with_password(&self, connection_id: i64, password: &str) -> Result<ServerInfo> {
+        // Drop any stale session.
+        self.sessions.lock().await.remove(&connection_id);
+
+        let (params, _) = self.store.credentials_params_only(connection_id).await?;
+        let mut client = mssql::connect(&params, Some(password)).await?;
+        let info = mssql::server_info(&mut client).await?;
+        let session = Arc::new(Session { connection_id, info: info.clone(), client: Mutex::new(client) });
+
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(connection_id, session);
+        Ok(info)
+    }
+
     pub async fn session(&self, connection_id: i64) -> Result<Arc<Session>> {
         self.sessions
             .lock()

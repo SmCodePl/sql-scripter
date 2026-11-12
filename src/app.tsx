@@ -8,6 +8,7 @@ import { ConfirmDeleteDialog } from "@/features/connections/confirm-delete-dialo
 import { ConnectionDialog } from "@/features/connections/connection-dialog";
 import { ConnectionSidebar } from "@/features/connections/connection-sidebar";
 import { ConnectionTab } from "@/features/workspace/connection-tab";
+import { type PasswordPromptState, PasswordPromptDialog } from "@/features/workspace/password-prompt-dialog";
 import { TabBar } from "@/features/workspace/tab-bar";
 import { useI18n } from "@/i18n";
 import { type AppInfo, type Connection, type ServerInfo, api, errorMessage } from "@/lib/api";
@@ -16,6 +17,13 @@ interface OpenTab {
     connectionId: number;
     info: ServerInfo;
 }
+
+/** Backend sends `"DECRYPT_FAILED:<id>"` when the stored password can't be decrypted. */
+const parseDecryptError = (e: unknown): number | null => {
+    const msg = errorMessage(e);
+    const m = msg.match(/^DECRYPT_FAILED:(\d+)$/);
+    return m ? Number(m[1]) : null;
+};
 
 export const App = ({ appInfo }: { appInfo: AppInfo }) => {
     const { t } = useI18n();
@@ -30,8 +38,13 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
     const [connectingId, setConnectingId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [editing, setEditing] = useState<{ open: boolean; connection: Connection | null }>({ open: false, connection: null });
     const [deleting, setDeleting] = useState<Connection | null>(null);
+
+    // Password re-entry prompt (when decryption key changed)
+    const [passwordPrompt, setPasswordPrompt] = useState<PasswordPromptState | null>(null);
+    const [passwordLoading, setPasswordLoading] = useState(false);
 
     const reload = useCallback(async () => {
         try {
@@ -55,8 +68,12 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
         await api.closeSession(connectionId).catch(() => undefined);
     }, []);
 
+    const addTab = (connectionId: number, info: ServerInfo) => {
+        setTabs((prev) => (prev.some((t) => t.connectionId === connectionId) ? prev : [...prev, { connectionId, info }]));
+        setActiveId(connectionId);
+    };
+
     const connect = async (c: Connection) => {
-        // Already connected: just focus the existing tab.
         if (tabs.some((t) => t.connectionId === c.id)) {
             setActiveId(c.id);
             return;
@@ -65,12 +82,32 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
         setError(null);
         try {
             const info = await api.openSession(c.id);
-            setTabs((prev) => (prev.some((t) => t.connectionId === c.id) ? prev : [...prev, { connectionId: c.id, info }]));
-            setActiveId(c.id);
+            addTab(c.id, info);
         } catch (e) {
-            setError(`${c.name}: ${errorMessage(e)}`);
+            const failedId = parseDecryptError(e);
+            if (failedId !== null) {
+                // Password can't be decrypted — ask user to re-enter it.
+                setPasswordPrompt({ connectionId: failedId, connectionName: c.name });
+            } else {
+                setError(`${c.name}: ${errorMessage(e)}`);
+            }
         } finally {
             setConnectingId(null);
+        }
+    };
+
+    const handlePasswordSubmit = async (connectionId: number, password: string) => {
+        setPasswordLoading(true);
+        setError(null);
+        try {
+            const info = await api.openSessionWithPassword(connectionId, password);
+            setPasswordPrompt(null);
+            addTab(connectionId, info);
+        } catch (e) {
+            setError(`${passwordPrompt?.connectionName ?? ""}: ${errorMessage(e)}`);
+            setPasswordPrompt(null);
+        } finally {
+            setPasswordLoading(false);
         }
     };
 
@@ -84,6 +121,8 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
                 openIds={openIds}
                 activeId={activeId}
                 connectingId={connectingId}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
                 onAdd={() => setEditing({ open: true, connection: null })}
                 onEdit={(c) => setEditing({ open: true, connection: c })}
                 onDelete={setDeleting}
@@ -130,7 +169,6 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
                         </div>
                     )}
 
-                    {/* All tabs stay mounted so filters and results survive switching. */}
                     {tabs.map((t) => {
                         const connection = byId.get(t.connectionId);
                         if (!connection) return null;
@@ -150,7 +188,6 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
                 onSaved={async (saved) => {
                     const wasEdit = editing.connection !== null;
                     setEditing({ open: false, connection: null });
-                    // Backend dropped the session after editing; close the stale tab.
                     if (wasEdit && openIds.has(saved.id)) await closeTab(saved.id);
                     await reload();
                 }}
@@ -173,6 +210,13 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
                         setDeleting(null);
                     }
                 }}
+            />
+
+            <PasswordPromptDialog
+                prompt={passwordPrompt}
+                isLoading={passwordLoading}
+                onSubmit={handlePasswordSubmit}
+                onClose={() => setPasswordPrompt(null)}
             />
         </div>
     );

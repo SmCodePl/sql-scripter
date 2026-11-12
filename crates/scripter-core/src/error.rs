@@ -12,6 +12,9 @@ pub enum Error {
     Timeout(Duration),
     /// Password could not be encrypted/decrypted (wrong or missing key).
     Crypto(String),
+    /// The stored password for a connection cannot be decrypted (key changed).
+    /// Carries the connection ID so the caller can ask for re-entry.
+    DecryptionFailed(i64),
     /// Already translated, user-facing message.
     Validation(String),
     NotFound(String),
@@ -25,6 +28,7 @@ impl fmt::Display for Error {
             Error::Io(e) => write!(f, "{}: {e}", t("Błąd zapisu/odczytu pliku", "File I/O error")),
             Error::Timeout(d) => write!(f, "{} ({}s)", t("Przekroczono limit czasu połączenia", "Connection timed out"), d.as_secs()),
             Error::Crypto(e) => write!(f, "{}: {e}", t("Błąd szyfrowania hasła", "Password encryption error")),
+            Error::DecryptionFailed(id) => write!(f, "DECRYPT_FAILED:{id}"),
             Error::Validation(m) => f.write_str(m),
             Error::NotFound(what) => write!(f, "{}: {what}", t("Nie znaleziono", "Not found")),
         }

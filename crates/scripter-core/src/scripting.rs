@@ -1,6 +1,6 @@
 //! Pure script generation (no I/O): CREATE OR ALTER for modules and idempotent table scripts.
 
-use crate::model::{ModuleMeta, ObjectRef, TableMeta};
+use crate::model::{ModuleMeta, ObjectKind, ObjectRef, TableMeta};
 
 /// Context printed in the script header.
 #[derive(Debug, Clone)]
@@ -9,6 +9,9 @@ pub struct ScriptHeader {
     pub source: String,
     /// e.g. `2026-11-11 15:40:00`
     pub generated_at: String,
+    /// SQL Server major version (e.g. 14 for 2017, 13 for 2016, 10 for 2008 R2).
+    /// `CREATE OR ALTER` requires >= 13 (2016 SP1); we use >= 14 to be safe.
+    pub major_version: i32,
 }
 
 /// `[name]` with `]` escaped.
@@ -111,9 +114,50 @@ pub fn module_script(object: &ObjectRef, module: &ModuleMeta, header: &ScriptHea
     push_header(&mut out, object, header, None);
     out.push_str(&format!("SET ANSI_NULLS {}\nGO\n", on_off(module.uses_ansi_nulls)));
     out.push_str(&format!("SET QUOTED_IDENTIFIER {}\nGO\n\n", on_off(module.uses_quoted_identifier)));
-    out.push_str(to_create_or_alter(module.definition.trim_matches(['\r', '\n'])).trim_end());
+
+    if header.major_version >= 14 {
+        // SQL Server 2017+: CREATE OR ALTER
+        out.push_str(to_create_or_alter(module.definition.trim_matches(['\r', '\n'])).trim_end());
+    } else {
+        // Pre-2017: ensure stub exists, then ALTER
+        let full_name = qualified_name(&object.schema_name, &object.object_name);
+        let (obj_type, stub_body) = match object.kind {
+            ObjectKind::Procedure => ("P", format!("EXEC('CREATE PROCEDURE {} AS SET NOCOUNT ON')", full_name)),
+            ObjectKind::View => ("V", format!("EXEC('CREATE VIEW {} AS SELECT 1 AS _stub')", full_name)),
+            ObjectKind::Function => ("FN", format!("EXEC('CREATE FUNCTION {} () RETURNS int AS BEGIN RETURN 0 END')", full_name)),
+            ObjectKind::Table => ("U", String::new()),
+        };
+        if object.kind != ObjectKind::Table {
+            out.push_str(&format!(
+                "IF OBJECT_ID({}, N'{obj_type}') IS NULL\n    {stub_body}\nGO\n\n",
+                n_literal(&full_name)
+            ));
+        }
+        out.push_str(to_alter(module.definition.trim_matches(['\r', '\n'])).trim_end());
+    }
     out.push_str("\nGO\n");
     normalize_crlf(&out)
+}
+
+/// Rewrites the leading `CREATE` keyword to `ALTER`.
+pub fn to_alter(definition: &str) -> String {
+    let bytes = definition.as_bytes();
+    let start = skip_trivia(bytes, 0);
+    if !starts_with_keyword(&bytes[start..], b"CREATE") {
+        return definition.to_owned();
+    }
+    let after_create = start + "CREATE".len();
+    let next = skip_trivia(bytes, after_create);
+    // If it already says `CREATE OR ALTER`, strip the `OR ALTER` part and use just ALTER
+    if starts_with_keyword(&bytes[next..], b"OR") {
+        let after_or = next + "OR".len();
+        let next2 = skip_trivia(bytes, after_or);
+        if starts_with_keyword(&bytes[next2..], b"ALTER") {
+            let after_alter = next2 + "ALTER".len();
+            return format!("{}ALTER{}", &definition[..start], &definition[after_alter..]);
+        }
+    }
+    format!("{}ALTER{}", &definition[..start], &definition[after_create..])
 }
 
 fn on_off(v: bool) -> &'static str {
@@ -277,7 +321,7 @@ mod tests {
     use crate::model::*;
 
     fn header() -> ScriptHeader {
-        ScriptHeader { source: "srv / db".into(), generated_at: "2026-11-11 15:00:00".into() }
+        ScriptHeader { source: "srv / db".into(), generated_at: "2026-11-11 15:00:00".into(), major_version: 16 }
     }
 
     #[test]
@@ -331,6 +375,24 @@ mod tests {
         assert!(s.contains("SET ANSI_NULLS ON\r\nGO\r\nSET QUOTED_IDENTIFIER OFF\r\nGO"));
         assert!(s.contains("CREATE OR ALTER PROCEDURE dbo.p AS\r\nSELECT 1\r\nGO\r\n"));
         assert!(!s.contains("\r\r"));
+    }
+
+    #[test]
+    fn module_script_old_server_uses_stub_and_alter() {
+        let obj = ObjectRef { schema_name: "dbo".into(), object_name: "p".into(), kind: ObjectKind::Procedure };
+        let m = ModuleMeta { definition: "CREATE PROCEDURE dbo.p AS\nSELECT 1\n".into(), uses_ansi_nulls: true, uses_quoted_identifier: true };
+        let old_header = ScriptHeader { source: "srv / db".into(), generated_at: "2026-11-11 15:00:00".into(), major_version: 10 };
+        let s = module_script(&obj, &m, &old_header);
+        assert!(s.contains("IF OBJECT_ID(N'[dbo].[p]', N'P') IS NULL"));
+        assert!(s.contains("EXEC('CREATE PROCEDURE [dbo].[p] AS SET NOCOUNT ON')"));
+        assert!(s.contains("ALTER PROCEDURE dbo.p AS"));
+        assert!(!s.contains("CREATE OR ALTER"));
+    }
+
+    #[test]
+    fn to_alter_basic() {
+        assert_eq!(to_alter("CREATE PROCEDURE dbo.x AS SELECT 1"), "ALTER PROCEDURE dbo.x AS SELECT 1");
+        assert_eq!(to_alter("CREATE OR ALTER VIEW v AS SELECT 1"), "ALTER VIEW v AS SELECT 1");
     }
 
     #[test]

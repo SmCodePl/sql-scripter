@@ -21,6 +21,8 @@ export const pl = {
     "sidebar.connected": "Połączono",
     "sidebar.settings": "Ustawienia",
     "sidebar.about": "O programie",
+    "sidebar.collapse": "Zwiń panel",
+    "sidebar.expand": "Rozwiń panel",
 
     // connection dialog
     "conn.new": "Nowe połączenie",
@@ -112,6 +114,13 @@ export const pl = {
     "preview.tooltip": "Podgląd skryptu",
     "preview.file": "Plik: {file}",
     "preview.generating": "Generowanie skryptu…",
+    "preview.contextMenu": "Podejrzyj procedurę",
+
+    // pagination
+    "pagination.rowsPerPage": "Wierszy na stronę:",
+    "pagination.page": "Strona {a} z {b}",
+    "pagination.prev": "Poprzednia strona",
+    "pagination.next": "Następna strona",
 
     // settings
     "settings.title": "Ustawienia",

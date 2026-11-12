@@ -144,7 +144,7 @@ pub async fn search_objects(state: State<'_, AppState>, connection_id: i64, filt
 #[tauri::command]
 pub async fn preview_script(state: State<'_, AppState>, connection_id: i64, object: ObjectRef) -> CmdResult<String> {
     let session = state.session(connection_id).await?;
-    let header = export::header_for(&session.source_label());
+    let header = export::header_for(&session.source_label(), session.info.major_version);
     let mut client = session.client.lock().await;
     match export::script_object(&mut client, &object, &header).await {
         Err(e) if e.is_connection_lost() => {
@@ -166,12 +166,13 @@ pub async fn export_objects(
     let dir = PathBuf::from(&directory);
     let source = session.source_label();
 
+    let major_version = session.info.major_version;
     let report = {
         let mut client = session.client.lock().await;
-        match export::export_objects(&mut client, &objects, &dir, &source).await {
+        match export::export_objects(&mut client, &objects, &dir, &source, major_version).await {
             Err(e) if e.is_connection_lost() => {
                 session.reconnect(&state.store, &mut client).await?;
-                export::export_objects(&mut client, &objects, &dir, &source).await?
+                export::export_objects(&mut client, &objects, &dir, &source, major_version).await?
             }
             other => other?,
         }

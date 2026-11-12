@@ -50,6 +50,7 @@ export const ConnectionTab = ({ connection, info, onExported }: ConnectionTabPro
     const [error, setError] = useState<string | null>(null);
     const [report, setReport] = useState<ExportReport | null>(null);
     const [preview, setPreview] = useState<PreviewState | null>(null);
+    const [previewingKey, setPreviewingKey] = useState<string | null>(null);
 
     const allKinds = kinds.size === ALL_KINDS.length;
 
@@ -112,13 +113,17 @@ export const ConnectionTab = ({ connection, info, onExported }: ConnectionTabPro
     };
 
     const showPreview = async (item: DbObject) => {
+        const key = objectKey(item);
         const base = { title: `${item.schemaName}.${item.objectName}`, fileName: `${item.schemaName}.${item.objectName}.sql` };
+        setPreviewingKey(key);
         setPreview({ ...base, script: null, error: null });
         try {
             const script = await api.previewScript(connection.id, item);
             setPreview({ ...base, script, error: null });
         } catch (e) {
             setPreview({ ...base, script: null, error: errorMessage(e) });
+        } finally {
+            setPreviewingKey(null);
         }
     };
 
@@ -254,7 +259,7 @@ export const ConnectionTab = ({ connection, info, onExported }: ConnectionTabPro
                             </p>
                         </div>
                     ) : (
-                        <ResultsTable items={items} selectedKeys={selected} onSelectionChange={setSelected} onPreview={showPreview} />
+                        <ResultsTable items={items} selectedKeys={selected} onSelectionChange={setSelected} onPreview={showPreview} previewingKey={previewingKey} />
                     )}
                 </div>
             </div>

@@ -21,6 +21,8 @@ export const en: Record<TranslationKey, string> = {
     "sidebar.connected": "Connected",
     "sidebar.settings": "Settings",
     "sidebar.about": "About",
+    "sidebar.collapse": "Collapse panel",
+    "sidebar.expand": "Expand panel",
 
     "conn.new": "New connection",
     "conn.edit": "Edit connection",
@@ -106,6 +108,13 @@ export const en: Record<TranslationKey, string> = {
     "preview.tooltip": "Preview script",
     "preview.file": "File: {file}",
     "preview.generating": "Generating script…",
+    "preview.contextMenu": "Preview procedure",
+
+    // pagination
+    "pagination.rowsPerPage": "Rows per page:",
+    "pagination.page": "Page {a} of {b}",
+    "pagination.prev": "Previous page",
+    "pagination.next": "Next page",
 
     "settings.title": "Settings",
     "settings.language": "Language",

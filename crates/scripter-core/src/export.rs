@@ -27,8 +27,12 @@ pub struct ExportReport {
     pub failed: Vec<ExportFailure>,
 }
 
-pub fn header_for(source: &str) -> ScriptHeader {
-    ScriptHeader { source: source.to_owned(), generated_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string() }
+pub fn header_for(source: &str, major_version: i32) -> ScriptHeader {
+    ScriptHeader {
+        source: source.to_owned(),
+        generated_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        major_version,
+    }
 }
 
 /// Builds the script text for a single object.
@@ -62,6 +66,7 @@ pub async fn export_objects(
     objects: &[ObjectRef],
     directory: &Path,
     source: &str,
+    major_version: i32,
 ) -> Result<ExportReport> {
     if !directory.is_dir() {
         return Err(Error::Validation(format!(
@@ -71,7 +76,7 @@ pub async fn export_objects(
         )));
     }
 
-    let header = header_for(source);
+    let header = header_for(source, major_version);
     let mut report = ExportReport { directory: directory.display().to_string(), written: Vec::new(), failed: Vec::new() };
 
     for object in objects {

@@ -30,6 +30,7 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
     const [connectingId, setConnectingId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [editing, setEditing] = useState<{ open: boolean; connection: Connection | null }>({ open: false, connection: null });
     const [deleting, setDeleting] = useState<Connection | null>(null);
 
@@ -84,6 +85,8 @@ export const App = ({ appInfo }: { appInfo: AppInfo }) => {
                 openIds={openIds}
                 activeId={activeId}
                 connectingId={connectingId}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
                 onAdd={() => setEditing({ open: true, connection: null })}
                 onEdit={(c) => setEditing({ open: true, connection: c })}
                 onDelete={setDeleting}
